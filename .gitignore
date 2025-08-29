@@ -1,0 +1,37 @@
+### Node
+node_modules/
+
+### Build outputs
+dist/
+coverage/
+.nyc_output/
+
+### TypeScript
+*.tsbuildinfo
+
+### Environment files
+.env
+.env.local
+.env.*.local
+
+### Logs and caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+logs/
+.cache/
+.eslintcache
+
+### IDE / OS noise
+.DS_Store
+.vscode/
+.idea/
+
+### Temp
+tmp/
+temp/
+
+### Example binary (Bun compile output)
+example/bin/

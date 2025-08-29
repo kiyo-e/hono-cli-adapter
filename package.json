@@ -1,0 +1,27 @@
+{
+  "name": "hono-cli-adapter",
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "build:example:bin": "npm run build && bun build --compile ./example/cli.mjs --outfile ./example/bin/hono-example"
+  },
+  "dependencies": {
+    "minimist": "^1.2.8"
+  },
+  "devDependencies": {
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^24.3.0",
+    "hono": "^4.9.5",
+    "typescript": "^5.5.0"
+  }
+}
