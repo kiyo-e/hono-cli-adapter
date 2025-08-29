@@ -1,4 +1,5 @@
 import minimist from 'minimist'
+import path from 'node:path'
 
 type AnyObj = Record<string, unknown>
 
@@ -106,3 +107,115 @@ export async function adaptAndFetch(
   return { req, res }
 }
 
+/** Convert a route path into CLI tokens; `:name` -> `<name>` */
+export function routePathToCommandSegments(routePath: string): string[] {
+  const segs = String(routePath || '')
+    .replace(/^\/+/, '')
+    .split('/')
+    .filter(Boolean)
+    .map((s) => (s.startsWith(':') ? `<${s.slice(1)}>` : s))
+  return segs
+}
+
+/** Build a single command example line for a route. */
+export function buildCommandExample(routePath: string, cmdBase: string): string {
+  const segs = routePathToCommandSegments(routePath)
+  return cmdBase + (segs.length ? ' ' + segs.join(' ') : '')
+}
+
+/** Build command examples for multiple routes. */
+export function buildCommandExamples(routes: string[], cmdBase: string): string[] {
+  return routes.map((p) => buildCommandExample(p, cmdBase))
+}
+
+/**
+ * Detect a reasonable command base for examples.
+ * - If running via Node/Bun script: returns `node relative/path.mjs` or `bun relative/path.mjs`.
+ * - If running as a compiled binary: returns the binary name from execPath/argv0.
+ */
+export function detectCommandBase(
+  argv0: string | undefined = typeof process !== 'undefined' ? process.argv?.[0] : undefined,
+  argv1: string | undefined = typeof process !== 'undefined' ? process.argv?.[1] : undefined
+): string {
+  const runtime = path.basename(argv0 || '')
+  const execBase = typeof process !== 'undefined' ? path.basename(process.execPath || '') : ''
+  const scriptRel = argv1 ? path.relative(process.cwd?.() || '', argv1) : ''
+
+  if (runtime === 'node') {
+    return scriptRel ? `node ${scriptRel}` : 'node cli.mjs'
+  }
+  if (runtime === 'bun') {
+    // If compiled with Bun, execPath is the binary; otherwise bun itself
+    return execBase && execBase !== 'bun' ? execBase : (scriptRel ? `bun ${scriptRel}` : 'bun cli.mjs')
+  }
+  return runtime || execBase || 'hono-example'
+}
+
+/** Convenience: list GET routes and produce command examples. */
+export function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[]; examples: string[] } {
+  const routes = listGetRoutes(app)
+  const base = cmdBase ?? detectCommandBase()
+  const examples = buildCommandExamples(routes, base)
+  return { routes, examples }
+}
+
+/** Convenience: produce only command examples for GET routes. */
+export function listCommandExamples(app: any, cmdBase?: string): string[] {
+  const base = cmdBase ?? detectCommandBase()
+  return buildCommandExamples(listGetRoutes(app), base)
+}
+
+export type RunCliResult = {
+  code: number
+  lines: string[]
+  req?: Request
+  res?: Response
+}
+
+/**
+ * Convenience: implement a default CLI behavior without touching stdout.
+ * - If `--list` or `--help` is present: returns command examples only.
+ * - Otherwise: fetches and returns response body (JSON pretty or text) as lines.
+ *
+ * Flags parsed here: `--list`, `--help`, `--json`, `--base`, `--env KEY=VALUE` (repeatable).
+ * Any additional CLI-only flags should be excluded via `options.reservedKeys` if you pass them to adapt.
+ */
+export async function runCliDefault(
+  app: any,
+  argvRaw: string[] = typeof process !== 'undefined' ? process.argv.slice(2) : [],
+  options?: AdapterOptions
+): Promise<RunCliResult> {
+  const argv = minimist(argvRaw, {
+    boolean: ['json', 'list', 'help'],
+    string: ['base', 'env'],
+    alias: { h: 'help', e: 'env' },
+    '--': true
+  })
+
+  if (argv.list || argv.help) {
+    const lines = listCommandExamples(app, detectCommandBase())
+    return { code: 0, lines }
+  }
+
+  const { req, res } = await adaptAndFetch(app, argvRaw, {
+    base: argv.base,
+    env: options?.env,
+    reservedKeys: ['json', 'list', 'help', ...(options?.reservedKeys ?? [])]
+  })
+
+  // Default format: JSON pretty if requested and parsable, otherwise raw text.
+  const text = await res.text()
+  let lines: string[]
+  if (argv.json) {
+    try {
+      const obj = JSON.parse(text)
+      lines = [JSON.stringify({ status: res.status, data: obj }, null, 2)]
+    } catch {
+      lines = [JSON.stringify({ status: res.status, data: text }, null, 2)]
+    }
+  } else {
+    lines = [text]
+  }
+
+  return { code: res.ok ? 0 : 1, lines, req, res }
+}

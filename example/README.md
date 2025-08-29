@@ -29,9 +29,10 @@ This produces `example/bin/hono-example`.
 ## Run the binary
 
 ```
-./example/bin/hono-example --list
-./example/bin/hono-example hello Taro --json
-./example/bin/hono-example env API_KEY --env API_KEY=secret-123 --json
+./example/bin/hono-example --list   # shows runnable command examples only
+./example/bin/hono-example --help   # same as --list
+./example/bin/hono-example hello Taro            # -> "Hello, Taro!"
+./example/bin/hono-example env API_KEY --env API_KEY=secret-123  # -> "API_KEY=secret-123"
 ./example/bin/hono-example --base /v1
 ```
 
@@ -42,8 +43,8 @@ This produces `example/bin/hono-example`.
 
 Flags understood by the CLI:
 
-- `--list` — list GET routes
-- `--json` — JSON-format the response (best-effort)
+- `--list` — print runnable command examples (derived from GET routes)
+- `--help`, `-h` — same output as `--list`
+- `--json` — JSON-format the response (best-effort). For text endpoints, it wraps text as `{ status, data }`.
 - `--base` — prefix base path (e.g. `/v1`)
 - `--env KEY=VALUE` — provide env for `app.fetch`
-

@@ -2,6 +2,7 @@
   "name": "hono-cli-adapter",
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

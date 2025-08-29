@@ -21,13 +21,13 @@ app.get('/help', (c) => {
 
 app.get('/hello/:name', (c) => {
   const name = c.req.param('name')
-  return c.json({ message: `Hello, ${name}!` })
+  return c.text(`Hello, ${name}!`)
 })
 
 app.get('/env/:key', (c) => {
   const key = c.req.param('key')
   const val = (c.env ?? {})[key]
-  return c.json({ key, value: val ?? null })
+  return c.text(`${key}=${val ?? ''}`)
 })
 
 export default app
