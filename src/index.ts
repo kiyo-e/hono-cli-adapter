@@ -83,7 +83,20 @@ export function buildRequestFromArgv(
   options?: AdapterOptions
 ): Request {
   const url = buildUrlFromArgv(argv, options)
-  return new Request(url, { method: 'GET' })
+  const tokens = argv['--'] as string[] | undefined
+
+  const init: RequestInit = { method: 'GET' }
+
+  if (argv.body != null) {
+    init.body = argv.body
+    init.method = 'POST'
+  } else if (tokens && tokens.length) {
+    const obj = Object.fromEntries(tokens.map((t) => t.split('=')))
+    init.body = JSON.stringify(obj)
+    init.method = 'POST'
+  }
+
+  return new Request(url, init)
 }
 
 /**

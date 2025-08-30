@@ -79,7 +79,8 @@ function runCliAndExit(app: any, argvRaw?: string[], options?: AdapterOptions): 
 Key behaviors:
 - Reserved keys default to `['_', '--', 'base', 'env']` and are removed from the query string. Add your own via `options.reservedKeys`.
 - `--env KEY=VALUE` can be repeated; merged into `options.env` with flags taking precedence on conflicts.
-- `buildRequestFromArgv` and `adaptAndFetch` use GET only.
+- Tokens after `--` default to `key=value` pairs, JSON-stringified into the request body.
+- `buildRequestFromArgv` and `adaptAndFetch` use GET by default (POST when a body is present).
 - `listGetRoutes` is best-effort and relies on Hono’s internal shape. It enumerates GET paths only.
 
 ## Usage Patterns
@@ -120,6 +121,7 @@ node example/cli.mjs --list   # prints runnable command examples only
 node example/cli.mjs --help   # same as --list
 node example/cli.mjs hello Taro         # -> "Hello, Taro!"
 node example/cli.mjs env API_KEY --env API_KEY=secret-123   # -> "API_KEY=secret-123"
+node example/cli.mjs submit -- name=Taro age=4  # tokens after `--` -> {"name":"Taro","age":"4"}
 ```
 
 Single-file binary via Bun:
@@ -130,7 +132,7 @@ npm run build:example:bin
 ```
 
 ## Design Notes
-- GET-only now; adding POST/others can be an additive future feature when/if needed.
+- GET by default; providing a body switches to POST.
 - The adapter never writes to stdout — your CLI formats results (plain text, JSON, etc.).
 - Use `reservedKeys` to prevent your CLI flags (e.g. `--json`, `--list`) from leaking into HTTP queries.
 
