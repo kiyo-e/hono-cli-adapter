@@ -3,17 +3,38 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
+  "description": "Adapt CLI argv to a GET Request for a Hono app (ESM).",
+  "author": "K.Endo",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kiyo-e/hono-cli-adapter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/kiyo-e/hono-cli-adapter/issues"
+  },
+  "homepage": "https://github.com/kiyo-e/hono-cli-adapter#readme",
+  "keywords": ["hono", "cli", "adapter", "request", "esm"],
+  "engines": {
+    "node": ">=18"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     }
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "build:example:bin": "npm run build && bun build --compile ./example/cli.mjs --outfile ./example/bin/hono-example"
   },
   "dependencies": {
