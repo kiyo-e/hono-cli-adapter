@@ -43,7 +43,7 @@ This produces `example/bin/hono-example`.
 
 Flags understood by the CLI:
 
-- `--list` — print runnable command examples (derived from GET routes)
+- `--list` — print runnable command examples (derived from POST routes)
 - `--help`, `-h` — same output as `--list`
 - `--json` — JSON-format the response (best-effort). For text endpoints, it wraps text as `{ status, data }`.
 - `--base` — prefix base path (e.g. `/v1`)
