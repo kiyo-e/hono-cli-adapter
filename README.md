@@ -140,26 +140,25 @@ await adaptAndFetch(app, process.argv.slice(2), {
 })
 ```
 
-## Example Project
-This repo ships a runnable example (Node + Bun binary):
-- `example/app.mjs:1` — minimal Hono app
-- `example/cli.mjs:1` — tiny CLI using this library
-- `example/README.md:1` — how to build and run
+## Example Projects
+This repo ships runnable examples:
+- `example/basic/` — minimal Hono app + CLI (`example/basic/README.md`)
+- `example/slaq/` — Slack-focused CLI example built on this adapter
 
 Quick taste:
 ```
 npm run build
-node example/cli.mjs --list   # prints runnable command examples only
-node example/cli.mjs --help   # same as --list
-node example/cli.mjs hello Taro         # -> "Hello, Taro!"
-node example/cli.mjs env API_KEY --env API_KEY=secret-123   # -> "API_KEY=secret-123"
+node example/basic/cli.mjs --list   # prints runnable command examples only
+node example/basic/cli.mjs --help   # same as --list
+node example/basic/cli.mjs hello Taro         # -> "Hello, Taro!"
+node example/basic/cli.mjs env API_KEY --env API_KEY=secret-123   # -> "API_KEY=secret-123"
 ```
 
 Single-file binary via Bun:
 ```
 npm run build:example:bin
-./example/bin/hono-example --list
-./example/bin/hono-example --help
+./example/basic/bin/hono-example --list
+./example/basic/bin/hono-example --help
 ```
 
 ## Design Notes

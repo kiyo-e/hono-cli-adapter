@@ -34,4 +34,4 @@ tmp/
 temp/
 
 ### Example binary (Bun compile output)
-example/bin/
+example/*/bin/

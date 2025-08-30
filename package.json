@@ -35,7 +35,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build",
-    "build:example:bin": "npm run build && bun build --compile ./example/cli.mjs --outfile ./example/bin/hono-example"
+    "build:example:bin": "npm run build && bun build --compile ./example/basic/cli.mjs --outfile ./example/basic/bin/hono-example"
   },
   "dependencies": {
     "minimist": "^1.2.8"
