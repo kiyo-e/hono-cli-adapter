@@ -76,6 +76,21 @@ export function parseEnvFlags(
 }
 
 /**
+ * Parse key=value tokens (e.g. from argv["--"]) into an object.
+ */
+export function parseBodyTokens(
+  tokens: string | string[] | undefined
+): Record<string, string> {
+  const pairs = ([] as string[]).concat(tokens || [])
+  return Object.fromEntries(
+    pairs.map((s) => {
+      const i = s.indexOf('=')
+      return i === -1 ? [s, ''] : [s.slice(0, i), s.slice(i + 1)]
+    })
+  )
+}
+
+/**
  * Create a Request from argv (method fixed to POST).
  */
 export function buildRequestFromArgv(
@@ -83,7 +98,11 @@ export function buildRequestFromArgv(
   options?: AdapterOptions
 ): Request {
   const url = buildUrlFromArgv(argv, options)
-  return new Request(url, { method: 'POST' })
+  const bodyObj = parseBodyTokens((argv as any)['--'])
+  const hasBody = Object.keys(bodyObj).length > 0
+  const body = hasBody ? JSON.stringify(bodyObj) : undefined
+  const headers = hasBody ? { 'content-type': 'application/json' } : undefined
+  return new Request(url, { method: 'POST', body, headers })
 }
 
 /**
@@ -178,6 +197,7 @@ export type RunCliResult = {
  * - Otherwise: fetches and returns response body (JSON pretty or text) as lines.
  *
  * Flags parsed here: `--list`, `--help`, `--json`, `--base`, `--env KEY=VALUE` (repeatable).
+ * Body tokens: append `-- key=value` pairs to send a JSON body.
  * Any additional CLI-only flags should be excluded via `options.reservedKeys` if you pass them to adapt.
  */
 export async function runCliDefault(

@@ -10,6 +10,7 @@ Status: minimal but usable. ESM-only.
 - Strong constraints: POST-only philosophy for predictable calls from the shell.
 - Reserved flags: easily exclude your CLI-only flags from HTTP query strings.
 - Env merging: combine `options.env` with repeated `--env KEY=VALUE` flags.
+- Body tokens: pass `-- key=value` pairs to send JSON payloads.
 
 ## Install
 ```
@@ -57,6 +58,7 @@ type AdapterOptions = {
 function listPostRoutes(app: any): string[]
 function buildUrlFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): URL
 function parseEnvFlags(envFlags: string | string[] | undefined): Record<string, string>
+function parseBodyTokens(tokens: string | string[] | undefined): Record<string, string>
 function buildRequestFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): Request
 function adaptAndFetch(
   app: any,
@@ -79,6 +81,7 @@ function runCliAndExit(app: any, argvRaw?: string[], options?: AdapterOptions): 
 Key behaviors:
 - Reserved keys default to `['_', '--', 'base', 'env']` and are removed from the query string. Add your own via `options.reservedKeys`.
 - `--env KEY=VALUE` can be repeated; merged into `options.env` with flags taking precedence on conflicts.
+- Tokens after `--` like `key=value` become a JSON body.
 - `buildRequestFromArgv` and `adaptAndFetch` use POST only.
 - `listPostRoutes` is best-effort and relies on Hono’s internal shape. It enumerates POST paths only.
 
@@ -95,7 +98,7 @@ const { res } = await adaptAndFetch(app, process.argv.slice(2), { reservedKeys: 
 import minimist from 'minimist'
 import { buildRequestFromArgv, parseEnvFlags, listRoutesWithExamples, detectCommandBase } from 'hono-cli-adapter'
 
-const argv = minimist(process.argv.slice(2), { string: ['env'] })
+const argv = minimist(process.argv.slice(2), { string: ['env'], '--': true })
 const req = buildRequestFromArgv(argv, { base: '/v1', reservedKeys: ['json'] })
 const res = await app.fetch(req, { ...parseEnvFlags(argv.env) })
 
