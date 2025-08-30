@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "type": "module",
   "license": "MIT",
-  "description": "Adapt CLI argv to a GET Request for a Hono app (ESM).",
+  "description": "Adapt CLI argv to a POST Request for a Hono app (ESM).",
   "author": "K.Endo",
   "repository": {
     "type": "git",

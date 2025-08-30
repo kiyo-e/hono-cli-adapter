@@ -1,13 +1,13 @@
 # hono-cli-adapter
 
-Tiny library to adapt CLI arguments into a GET request for a Hono app — without touching stdout. It lets you build a small custom CLI around an existing Hono application, while keeping this package a pure, testable library.
+Tiny library to adapt CLI arguments into a POST request for a Hono app — without touching stdout. It lets you build a small custom CLI around an existing Hono application, while keeping this package a pure, testable library.
 
 Status: minimal but usable. ESM-only.
 
 ## Why
 - Keep your CLI thin: printing, JSON formatting, and flags live in your own small bin.
 - Library has no side effects: never writes to stdout/stderr.
-- Strong constraints: GET-only philosophy for predictable, cacheable calls from the shell.
+- Strong constraints: POST-only philosophy for predictable calls from the shell.
 - Reserved flags: easily exclude your CLI-only flags from HTTP query strings.
 - Env merging: combine `options.env` with repeated `--env KEY=VALUE` flags.
 
@@ -54,7 +54,7 @@ type AdapterOptions = {
   reservedKeys?: string[]
 }
 
-function listGetRoutes(app: any): string[]
+function listPostRoutes(app: any): string[]
 function buildUrlFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): URL
 function parseEnvFlags(envFlags: string | string[] | undefined): Record<string, string>
 function buildRequestFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): Request
@@ -79,8 +79,8 @@ function runCliAndExit(app: any, argvRaw?: string[], options?: AdapterOptions): 
 Key behaviors:
 - Reserved keys default to `['_', '--', 'base', 'env']` and are removed from the query string. Add your own via `options.reservedKeys`.
 - `--env KEY=VALUE` can be repeated; merged into `options.env` with flags taking precedence on conflicts.
-- `buildRequestFromArgv` and `adaptAndFetch` use GET only.
-- `listGetRoutes` is best-effort and relies on Hono’s internal shape. It enumerates GET paths only.
+- `buildRequestFromArgv` and `adaptAndFetch` use POST only.
+- `listPostRoutes` is best-effort and relies on Hono’s internal shape. It enumerates POST paths only.
 
 ## Usage Patterns
 Two ways to integrate:
@@ -101,8 +101,8 @@ const res = await app.fetch(req, { ...parseEnvFlags(argv.env) })
 
 // Show routes plus runnable examples (you print; library does not):
 const { routes, examples } = listRoutesWithExamples(app, detectCommandBase())
-console.log('GET routes:')
-for (const p of routes) console.log('  GET ' + p)
+console.log('POST routes:')
+for (const p of routes) console.log('  POST ' + p)
 console.log('\nCommand examples:')
 for (const ex of examples) console.log('  ' + ex)
 ```
@@ -130,7 +130,7 @@ npm run build:example:bin
 ```
 
 ## Design Notes
-- GET-only now; adding POST/others can be an additive future feature when/if needed.
+- POST-only now; adding other methods can be an additive future feature when/if needed.
 - The adapter never writes to stdout — your CLI formats results (plain text, JSON, etc.).
 - Use `reservedKeys` to prevent your CLI flags (e.g. `--json`, `--list`) from leaking into HTTP queries.
 
@@ -139,7 +139,7 @@ npm run build:example:bin
 - Node 18+ recommended. If you don’t have global `fetch`, polyfill (e.g. `undici`).
 
 ## Caveats
-- `listGetRoutes` depends on Hono internals and may break if they change. Consider maintaining your own list if you need strong guarantees.
+- `listPostRoutes` depends on Hono internals and may break if they change. Consider maintaining your own list if you need strong guarantees.
 
 ## Development
 ```

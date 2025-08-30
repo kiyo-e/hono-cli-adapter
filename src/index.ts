@@ -15,12 +15,12 @@ export type AdapterOptions = {
 const DEFAULT_RESERVED = new Set(['_', '--', 'base', 'env'])
 
 /**
- * Roughly list GET routes from a Hono app.
+ * Roughly list POST routes from a Hono app.
  * Note: this relies on Hono's internal shape (best-effort snapshot).
  */
-export function listGetRoutes(app: any): string[] {
+export function listPostRoutes(app: any): string[] {
   const routes = (app as any)?.routes ?? []
-  return routes.filter((r: any) => r?.method === 'GET').map((r: any) => r.path)
+  return routes.filter((r: any) => r?.method === 'POST').map((r: any) => r.path)
 }
 
 /**
@@ -76,14 +76,14 @@ export function parseEnvFlags(
 }
 
 /**
- * Create a Request from argv (method fixed to GET).
+ * Create a Request from argv (method fixed to POST).
  */
 export function buildRequestFromArgv(
   argv: minimist.ParsedArgs,
   options?: AdapterOptions
 ): Request {
   const url = buildUrlFromArgv(argv, options)
-  return new Request(url, { method: 'GET' })
+  return new Request(url, { method: 'POST' })
 }
 
 /**
@@ -151,18 +151,18 @@ export function detectCommandBase(
   return runtime || execBase || 'hono-example'
 }
 
-/** Convenience: list GET routes and produce command examples. */
+/** Convenience: list POST routes and produce command examples. */
 export function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[]; examples: string[] } {
-  const routes = listGetRoutes(app)
+  const routes = listPostRoutes(app)
   const base = cmdBase ?? detectCommandBase()
   const examples = buildCommandExamples(routes, base)
   return { routes, examples }
 }
 
-/** Convenience: produce only command examples for GET routes. */
+/** Convenience: produce only command examples for POST routes. */
 export function listCommandExamples(app: any, cmdBase?: string): string[] {
   const base = cmdBase ?? detectCommandBase()
-  return buildCommandExamples(listGetRoutes(app), base)
+  return buildCommandExamples(listPostRoutes(app), base)
 }
 
 export type RunCliResult = {
