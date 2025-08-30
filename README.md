@@ -53,6 +53,9 @@ type AdapterOptions = {
   base?: string
   env?: Record<string, unknown>
   reservedKeys?: string[]
+  beforeFetch?:
+    | ((req: Request, argv: minimist.ParsedArgs) => Promise<Request | void> | Request | void)
+    | Record<string, (req: Request, argv: minimist.ParsedArgs) => Promise<Request | void> | Request | void>
 }
 
 function listPostRoutes(app: any): string[]
@@ -60,6 +63,7 @@ function buildUrlFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): 
 function parseEnvFlags(envFlags: string | string[] | undefined): Record<string, string>
 function parseBodyTokens(tokens: string | string[] | undefined): Record<string, string>
 function buildRequestFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): Request
+function commandFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): string | undefined
 function adaptAndFetch(
   app: any,
   argvRaw?: string[] /* defaults to process.argv.slice(2) */,
@@ -108,6 +112,32 @@ console.log('POST routes:')
 for (const p of routes) console.log('  POST ' + p)
 console.log('\nCommand examples:')
 for (const ex of examples) console.log('  ' + ex)
+```
+
+### Hooks and command detection
+
+Tweak the outgoing `Request` before sending:
+
+```ts
+import fs from 'node:fs/promises'
+import minimist from 'minimist'
+import { adaptAndFetch, commandFromArgv } from 'hono-cli-adapter'
+
+const argv = minimist(process.argv.slice(2), { '--': true })
+const cmd = commandFromArgv(argv) // safe: no direct argv._ access
+
+await adaptAndFetch(app, process.argv.slice(2), {
+  beforeFetch: {
+    upload: async (req, argv) => {
+      if (argv.file) {
+        const buf = await fs.readFile(argv.file)
+        const headers = new Headers(req.headers)
+        headers.set('content-type', 'application/octet-stream')
+        return new Request(req, { body: buf, headers })
+      }
+    }
+  }
+})
 ```
 
 ## Example Project
