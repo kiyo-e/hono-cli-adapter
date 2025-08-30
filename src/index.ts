@@ -3,6 +3,11 @@ import path from 'node:path'
 
 type AnyObj = Record<string, unknown>
 
+export type BeforeFetchFn = (
+  req: Request,
+  argv: minimist.ParsedArgs
+) => Promise<Request | void> | Request | void
+
 export type AdapterOptions = {
   /** Base path to prefix to argv path segments (e.g. /v1). */
   base?: string
@@ -10,6 +15,8 @@ export type AdapterOptions = {
   env?: Record<string, unknown>
   /** Keys that should NOT be placed into query string (CLI-only flags). */
   reservedKeys?: string[]
+  /** Hook to modify Request before fetch. */
+  beforeFetch?: BeforeFetchFn | Record<string, BeforeFetchFn>
 }
 
 const DEFAULT_RESERVED = new Set(['_', '--', 'base', 'env'])
@@ -58,6 +65,18 @@ export function buildUrlFromArgv(
   const q = qs.toString()
   if (q) url.search = q
   return url
+}
+
+/**
+ * Derive the first command segment from argv without touching argv._ directly.
+ */
+export function commandFromArgv(
+  argv: minimist.ParsedArgs,
+  options?: AdapterOptions
+): string | undefined {
+  const url = buildUrlFromArgv(argv, options)
+  const seg = url.pathname.replace(/^\/+/, '').split('/')[0]
+  return seg || undefined
 }
 
 /**
@@ -118,12 +137,29 @@ export async function adaptAndFetch(
     alias: { e: 'env' },
     '--': true
   })
-
-  const req = buildRequestFromArgv(argv, options)
+  let req = buildRequestFromArgv(argv, options)
+  const hook = resolveBeforeFetch(options?.beforeFetch, argv)
+  if (hook) {
+    const maybe = await hook(req, argv)
+    if (maybe instanceof Request) req = maybe
+  }
   const envFromFlags = parseEnvFlags(argv.env)
   const mergedEnv = { ...(options?.env ?? {}), ...envFromFlags }
   const res = await app.fetch(req, mergedEnv)
   return { req, res }
+}
+
+function resolveBeforeFetch(
+  before: AdapterOptions['beforeFetch'],
+  argv: minimist.ParsedArgs
+): BeforeFetchFn | undefined {
+  if (!before) return
+  if (typeof before === 'function') return before
+  const cmd = commandFromArgv(argv)
+  if (cmd && typeof before === 'object') {
+    return before[cmd]
+  }
+  return undefined
 }
 
 /** Convert a route path into CLI tokens; `:name` -> `<name>` */
@@ -220,7 +256,8 @@ export async function runCliDefault(
   const { req, res } = await adaptAndFetch(app, argvRaw, {
     base: argv.base,
     env: options?.env,
-    reservedKeys: ['json', 'list', 'help', ...(options?.reservedKeys ?? [])]
+    reservedKeys: ['json', 'list', 'help', ...(options?.reservedKeys ?? [])],
+    beforeFetch: options?.beforeFetch
   })
 
   // Default format: JSON pretty if requested and parsable, otherwise raw text.
