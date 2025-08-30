@@ -24,22 +24,22 @@ From the repo root, run:
 npm run build:example:bin
 ```
 
-This produces `example/bin/hono-example`.
+This produces `example/basic/bin/hono-example`.
 
 ## Run the binary
 
 ```
-./example/bin/hono-example --list   # shows runnable command examples only
-./example/bin/hono-example --help   # same as --list
-./example/bin/hono-example hello Taro            # -> "Hello, Taro!"
-./example/bin/hono-example env API_KEY --env API_KEY=secret-123  # -> "API_KEY=secret-123"
-./example/bin/hono-example --base /v1
+./example/basic/bin/hono-example --list   # shows runnable command examples only
+./example/basic/bin/hono-example --help   # same as --list
+./example/basic/bin/hono-example hello Taro            # -> "Hello, Taro!"
+./example/basic/bin/hono-example env API_KEY --env API_KEY=secret-123  # -> "API_KEY=secret-123"
+./example/basic/bin/hono-example --base /v1
 ```
 
 ## What’s inside
 
-- `example/app.mjs` — minimal Hono app
-- `example/cli.mjs` — small CLI using `adaptAndFetch()`
+- `example/basic/app.mjs` — minimal Hono app
+- `example/basic/cli.mjs` — small CLI using `adaptAndFetch()`
 
 Flags understood by the CLI:
 

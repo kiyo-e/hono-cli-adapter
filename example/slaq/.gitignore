@@ -1,0 +1,16 @@
+# deps
+node_modules/
+
+# Bun single-file binary
+bin/
+
+# logs & caches
+*.log
+.nyc_output/
+coverage/
+.cache/
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
