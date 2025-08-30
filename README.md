@@ -34,6 +34,16 @@ for (const l of lines) console.log(l)
 process.exit(code)
 ```
 
+Ultra‑simple (one‑liner) bin using the convenience wrapper that prints and exits for you:
+
+```ts
+#!/usr/bin/env node
+import { runCliAndExit } from 'hono-cli-adapter'
+import { app } from './dist/app.js'
+
+await runCliAndExit(app, process.argv.slice(2))
+```
+
 ## API
 Exported from `src/index.ts:1`:
 
@@ -62,6 +72,8 @@ function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[];
 function listCommandExamples(app: any, cmdBase?: string): string[]
 type RunCliResult = { code: number; lines: string[]; req?: Request; res?: Response }
 function runCliDefault(app: any, argvRaw?: string[], options?: AdapterOptions): Promise<RunCliResult>
+// Convenience with side effects (stdout + process.exit when available)
+function runCliAndExit(app: any, argvRaw?: string[], options?: AdapterOptions): Promise<number>
 ```
 
 Key behaviors:
@@ -138,4 +150,4 @@ npm run build
 That’s it — minimal surface, focused on the adapter behavior.
 
 ## License
-MIT © K. Endo
+MIT © K.Endo

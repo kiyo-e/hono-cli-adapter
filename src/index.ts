@@ -219,3 +219,34 @@ export async function runCliDefault(
 
   return { code: res.ok ? 0 : 1, lines, req, res }
 }
+
+/**
+ * Convenience: run the default CLI behavior and handle side effects.
+ * - Prints each output line to stdout.
+ * - Exits the process with the derived exit code when available.
+ *
+ * Keeps the core `runCliDefault` pure while offering a one-liner entrypoint
+ * for bin scripts. If `process` is unavailable (non-Node runtimes), printing
+ * falls back to `console.log` and no forced exit is attempted.
+ */
+export async function runCliAndExit(
+  app: any,
+  argvRaw: string[] = typeof process !== 'undefined' ? process.argv.slice(2) : [],
+  options?: AdapterOptions
+): Promise<number> {
+  const { code, lines } = await runCliDefault(app, argvRaw, options)
+
+  const hasStdout = typeof process !== 'undefined' && (process as any).stdout &&
+    typeof (process as any).stdout.write === 'function'
+
+  if (hasStdout) {
+    for (const l of lines) (process as any).stdout.write(String(l) + '\n')
+  } else {
+    for (const l of lines) console.log(String(l))
+  }
+
+  if (typeof process !== 'undefined' && typeof (process as any).exit === 'function') {
+    ;(process as any).exit(code)
+  }
+  return code
+}
