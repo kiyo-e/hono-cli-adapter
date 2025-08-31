@@ -301,9 +301,32 @@ export type RunCliResult = {
   res?: Response
 }
 
+const MINIMIST_GLOBAL: minimist.Opts = {
+  boolean: ['json', 'list', 'help'],
+  string: ['base', 'env'],
+  alias: { h: 'help', e: 'env' },
+  '--': true
+}
+
+export const globalFlagTypes: Record<string, 'boolean' | 'string'> = (() => {
+  const out: Record<string, 'boolean' | 'string'> = {}
+  for (const k of (MINIMIST_GLOBAL.boolean as string[])) out[k] = 'boolean'
+  for (const k of (MINIMIST_GLOBAL.string as string[])) out[k] = 'string'
+  return out
+})()
+
+const FLAG_DESCRIPTIONS: Record<string, string> = {
+  json: 'pretty-print response as JSON',
+  list: 'list command examples only',
+  help: 'show this help',
+  base: 'set base URL for requests',
+  env: 'set env vars (KEY=VALUE or path)'
+}
+
 /**
  * Convenience: implement a default CLI behavior without touching stdout.
- * - If `--list` or `--help` is present: returns command examples only.
+ * - If `--list` is present: returns command examples only.
+ * - If `--help` is present: returns command examples plus global flags.
  * - Otherwise: fetches and returns response body (JSON pretty or text) as lines.
  *
  * Flags parsed here: `--list`, `--help`, `--json`, `--base`, `--env KEY=VALUE` (repeatable).
@@ -315,22 +338,21 @@ export async function runCliDefault(
   argvRaw: string[] = typeof process !== 'undefined' ? process.argv.slice(2) : [],
   options?: AdapterOptions
 ): Promise<RunCliResult> {
-  const argv = minimist(argvRaw, {
-    boolean: ['json', 'list', 'help'],
-    string: ['base', 'env'],
-    alias: { h: 'help', e: 'env' },
-    '--': true
-  })
+  const argv = minimist(argvRaw, MINIMIST_GLOBAL)
 
   if (argv.list || argv.help) {
     const lines = listCommandExamples(app, detectCommandBase())
+    if (argv.help) {
+      const flagLines = Object.keys(globalFlagTypes).map((k) => `--${k} - ${FLAG_DESCRIPTIONS[k]}`)
+      lines.push('', 'Flags:', ...flagLines)
+    }
     return { code: 0, lines }
   }
 
   const { req, res } = await adaptAndFetch(app, argvRaw, {
     base: argv.base,
     env: options?.env,
-    reservedKeys: ['json', 'list', 'help', ...(options?.reservedKeys ?? [])],
+    reservedKeys: [...Object.keys(globalFlagTypes), ...(options?.reservedKeys ?? [])],
     beforeFetch: options?.beforeFetch
   })
 

@@ -5,7 +5,8 @@ import { Hono } from 'hono'
 import {
   commandFromArgv,
   adaptAndFetch,
-  listRoutesWithExamplesFromOpenApi
+  listRoutesWithExamplesFromOpenApi,
+  runCliDefault
 } from '../dist/index.js'
 
 // commandFromArgv tests
@@ -92,4 +93,12 @@ test('listRoutesWithExamplesFromOpenApi extracts params', () => {
     '--email (string, required) : user email',
     '--age (integer, required) : user age'
   ])
+})
+
+test('runCliDefault help lists global flags', async () => {
+  const app = new Hono()
+  app.post('/ping', (c) => c.text('pong'))
+  const { lines } = await runCliDefault(app, ['--help'])
+  assert.equal(lines.includes('Flags:'), true)
+  assert(lines.some((l) => l.includes('--json')))
 })
