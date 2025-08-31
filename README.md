@@ -198,7 +198,7 @@ Quick taste:
 ```
 npm run build
 node example/basic/cli.mjs --list   # prints runnable command examples only
-node example/basic/cli.mjs --help   # same as --list
+node example/basic/cli.mjs --help   # adds a Flags section
 node example/basic/cli.mjs hello Taro         # -> "Hello, Taro!"
 node example/basic/cli.mjs env API_KEY --env API_KEY=secret-123   # -> "API_KEY=secret-123"
 ```
@@ -207,7 +207,7 @@ Single-file binary via Bun:
 ```
 npm run build:example:bin
 ./example/basic/bin/hono-example --list
-./example/basic/bin/hono-example --help
+./example/basic/bin/hono-example --help   # shows flags
 ```
 
 ## Design Notes
