@@ -47,6 +47,9 @@ node ./cli.mjs post -- channel=C123456 text="hi" thread_ts=1724952000.000000
 # fetch thread
 node ./cli.mjs thread.get -- channel=C123456 ts=1724952000.000000
 
+# list channels (conversations)
+node ./cli.mjs channels.list -- types=public_channel,private_channel limit=200
+
 # list files
 node ./cli.mjs files.list -- channel=C123456 count=50
 
@@ -73,5 +76,8 @@ npm run build:bin
 - Common logic collected via `app.use` (force POST, merge query+body, inject tokens)
 - Zod validation (`app.use('/path', useToken(), validateMerged(schema))`)
 - Thin handlers that simply `c.json` the Slack client data
+
+Notes for channels listing:
+- Uses `useToken('any')` so it works with either user or bot token. User tokens typically see more (private channels/DM require proper scopes).
 
 Any extra seasoning should live on the CLI side, keeping upstream logic minimal.

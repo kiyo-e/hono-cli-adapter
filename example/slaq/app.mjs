@@ -104,6 +104,19 @@ const SThreadGet = z.object({
   ts: z.union([z.string(), z.number()]).transform(v => String(v))
 })
 
+const SChannelsList = z.object({
+  // comma separated: public_channel,private_channel,mpim,im
+  types: z.string().optional(),
+  // Slack expects number; we stringify for form encoding
+  limit: z.union([z.string(), z.number()]).optional()
+    .transform(v => (v == null ? undefined : String(v))),
+  cursor: z.string().optional(),
+  team_id: z.string().optional(),
+  // Slack accepts true/false; stringify to "true"/"false"
+  exclude_archived: z.union([z.string(), z.number(), z.boolean()]).optional()
+    .transform(v => (v == null ? undefined : String(v)))
+})
+
 const SFilesList = z.object({
   channel: z.string().min(1),
   count: z.union([z.string(), z.number()]).optional()
@@ -153,6 +166,23 @@ app.post('/thread.get', async (c) => {
   const p = c.get('p')
   const data = await slackData('conversations.replies',
     { channel: p.channel, ts: p.ts },
+    c.get('authToken')
+  )
+  return c.json(data, data.ok ? 200 : 400)
+})
+
+// /channels.list -> conversations.list (list channels/conversations)
+app.use('/channels.list', useToken('any'), validateMerged(SChannelsList))
+app.post('/channels.list', async (c) => {
+  const p = c.get('p')
+  const data = await slackData('conversations.list',
+    {
+      types: p.types,
+      limit: p.limit ?? '200',
+      cursor: p.cursor,
+      team_id: p.team_id,
+      exclude_archived: p.exclude_archived
+    },
     c.get('authToken')
   )
   return c.json(data, data.ok ? 200 : 400)
