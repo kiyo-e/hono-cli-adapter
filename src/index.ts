@@ -11,7 +11,7 @@ export type BeforeFetchFn = (
 export type AdapterOptions = {
   /** Base path to prefix to argv path segments (e.g. /v1). */
   base?: string
-  /** Env object passed to app.fetch (merged with --env if provided). */
+  /** Env object passed to app.fetch (merged over process.env; --env flags win). */
   env?: Record<string, unknown>
   /** Keys that should NOT be placed into query string (CLI-only flags). */
   reservedKeys?: string[]
@@ -143,8 +143,13 @@ export async function adaptAndFetch(
     const maybe = await hook(req, argv)
     if (maybe instanceof Request) req = maybe
   }
+  // Default: merge full process.env, then options.env, then --env flags (flags win)
   const envFromFlags = parseEnvFlags(argv.env)
-  const mergedEnv = { ...(options?.env ?? {}), ...envFromFlags }
+  const envFromProcess =
+    typeof process !== 'undefined' && (process as any)?.env
+      ? ((process as any).env as Record<string, unknown>)
+      : ({} as Record<string, unknown>)
+  const mergedEnv = { ...envFromProcess, ...(options?.env ?? {}), ...envFromFlags }
   const res = await app.fetch(req, mergedEnv)
   return { req, res }
 }
@@ -218,6 +223,75 @@ export function listRoutesWithExamples(app: any, cmdBase?: string): { routes: st
 export function listCommandExamples(app: any, cmdBase?: string): string[] {
   const base = cmdBase ?? detectCommandBase()
   return buildCommandExamples(listPostRoutes(app), base)
+}
+
+export type OpenApiParam = {
+  name: string
+  in: string
+  required?: boolean
+  description?: string
+  schema?: any
+}
+
+export function listRoutesWithExamplesFromOpenApi(
+  openapi: any,
+  cmdBase?: string
+): { routes: string[]; examples: string[]; params: OpenApiParam[][] } {
+  const paths = openapi?.paths || {}
+  const base = cmdBase ?? detectCommandBase()
+  const routes: string[] = []
+  const examples: string[] = []
+  const params: OpenApiParam[][] = []
+
+  for (const [rawPath, item] of Object.entries<any>(paths)) {
+    const post = (item as any)?.post
+    if (!post) continue
+
+    const route = String(rawPath).replace(/\{(.*?)\}/g, ':$1')
+    routes.push(route)
+
+    const paramList: OpenApiParam[] = []
+    const collect = (arr: any[] | undefined) => {
+      for (const p of arr || []) {
+        paramList.push({
+          name: p.name,
+          in: p.in,
+          required: p.required,
+          description: p.description,
+          schema: p.schema
+        })
+      }
+    }
+    collect((item as any).parameters)
+    collect(post.parameters)
+
+    const schema = (post as any)?.requestBody?.content?.['application/json']?.schema
+    if (schema?.type === 'object' && schema.properties) {
+      const required: string[] = schema.required || []
+      for (const [name, prop] of Object.entries<any>(schema.properties)) {
+        paramList.push({
+          name,
+          in: 'body',
+          required: required.includes(name),
+          description: (prop as any)?.description,
+          schema: prop
+        })
+      }
+    }
+
+    params.push(paramList)
+
+    const segs = routePathToCommandSegments(route)
+    let example = base + (segs.length ? ' ' + segs.join(' ') : '')
+    for (const p of paramList) {
+      if (p.in === 'query' || p.in === 'body') {
+        example += ` --${p.name} <${p.name}>`
+      }
+    }
+    examples.push(example)
+  }
+
+  return { routes, examples, params }
 }
 
 export type RunCliResult = {

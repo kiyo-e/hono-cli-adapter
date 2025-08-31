@@ -1,0 +1,22 @@
+{
+  "name": "slaq-cli",
+  "version": "0.1.0",
+  "type": "module",
+  "license": "MIT",
+  "description": "Slack mini CLI",
+  "bin": {
+    "slaq": "./cli.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node ./cli.mjs --list",
+    "build:bin": "bun build --compile ./cli.mjs --outfile ./bin/slaq"
+  },
+  "dependencies": {
+    "hono": "^4.9.5",
+    "hono-cli-adapter": "^0.1.1",
+    "zod": "^3.23.8"
+  }
+}

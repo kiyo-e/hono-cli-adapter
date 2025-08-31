@@ -1,6 +1,6 @@
 {
   "name": "hono-cli-adapter",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "license": "MIT",
   "description": "Adapt CLI argv to a POST Request for a Hono app (ESM).",
@@ -35,7 +35,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepublishOnly": "npm run build",
-    "build:example:bin": "npm run build && bun build --compile ./example/cli.mjs --outfile ./example/bin/hono-example"
+    "build:example:bin": "npm run build && bun build --compile ./example/basic/cli.mjs --outfile ./example/basic/bin/hono-example"
   },
   "dependencies": {
     "minimist": "^1.2.8"
