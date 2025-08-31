@@ -225,6 +225,75 @@ export function listCommandExamples(app: any, cmdBase?: string): string[] {
   return buildCommandExamples(listPostRoutes(app), base)
 }
 
+export type OpenApiParam = {
+  name: string
+  in: string
+  required?: boolean
+  description?: string
+  schema?: any
+}
+
+export function listRoutesWithExamplesFromOpenApi(
+  openapi: any,
+  cmdBase?: string
+): { routes: string[]; examples: string[]; params: OpenApiParam[][] } {
+  const paths = openapi?.paths || {}
+  const base = cmdBase ?? detectCommandBase()
+  const routes: string[] = []
+  const examples: string[] = []
+  const params: OpenApiParam[][] = []
+
+  for (const [rawPath, item] of Object.entries<any>(paths)) {
+    const post = (item as any)?.post
+    if (!post) continue
+
+    const route = String(rawPath).replace(/\{(.*?)\}/g, ':$1')
+    routes.push(route)
+
+    const paramList: OpenApiParam[] = []
+    const collect = (arr: any[] | undefined) => {
+      for (const p of arr || []) {
+        paramList.push({
+          name: p.name,
+          in: p.in,
+          required: p.required,
+          description: p.description,
+          schema: p.schema
+        })
+      }
+    }
+    collect((item as any).parameters)
+    collect(post.parameters)
+
+    const schema = (post as any)?.requestBody?.content?.['application/json']?.schema
+    if (schema?.type === 'object' && schema.properties) {
+      const required: string[] = schema.required || []
+      for (const [name, prop] of Object.entries<any>(schema.properties)) {
+        paramList.push({
+          name,
+          in: 'body',
+          required: required.includes(name),
+          description: (prop as any)?.description,
+          schema: prop
+        })
+      }
+    }
+
+    params.push(paramList)
+
+    const segs = routePathToCommandSegments(route)
+    let example = base + (segs.length ? ' ' + segs.join(' ') : '')
+    for (const p of paramList) {
+      if (p.in === 'query' || p.in === 'body') {
+        example += ` --${p.name} <${p.name}>`
+      }
+    }
+    examples.push(example)
+  }
+
+  return { routes, examples, params }
+}
+
 export type RunCliResult = {
   code: number
   lines: string[]

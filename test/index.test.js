@@ -4,7 +4,8 @@ import minimist from 'minimist'
 import { Hono } from 'hono'
 import {
   commandFromArgv,
-  adaptAndFetch
+  adaptAndFetch,
+  listRoutesWithExamplesFromOpenApi
 } from '../dist/index.js'
 
 // commandFromArgv tests
@@ -41,4 +42,54 @@ test('beforeFetch map applies only matching hook', async () => {
   assert.equal(await res.text(), 'ok')
   assert.equal(called, true)
   assert.equal(otherCalled, false)
+})
+
+test('listRoutesWithExamplesFromOpenApi extracts params', () => {
+  const openapi = {
+    paths: {
+      '/user/{id}': {
+        parameters: [
+          { name: 'id', in: 'path', required: true, description: 'user id', schema: { type: 'string' } }
+        ],
+        post: {
+          parameters: [
+            { name: 'email', in: 'query', required: true, description: 'user email', schema: { type: 'string' } }
+          ],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    age: { type: 'integer', description: 'user age' }
+                  },
+                  required: ['age']
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const { routes, examples, params } = listRoutesWithExamplesFromOpenApi(openapi, 'cmd')
+
+  assert.deepEqual(routes, ['/user/:id'])
+  assert.deepEqual(examples, ['cmd user <id> --email <email> --age <age>'])
+
+  const lines = [
+    examples[0],
+    ...params[0]
+      .filter((p) => p.in !== 'path')
+      .map(
+        (p) => `--${p.name} (${p.schema?.type}${p.required ? ', required' : ''}) : ${p.description}`
+      )
+  ]
+
+  assert.deepEqual(lines, [
+    'cmd user <id> --email <email> --age <age>',
+    '--email (string, required) : user email',
+    '--age (integer, required) : user age'
+  ])
 })

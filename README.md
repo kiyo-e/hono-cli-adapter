@@ -77,6 +77,8 @@ function buildCommandExamples(routes: string[], cmdBase: string): string[]
 function detectCommandBase(argv0?: string, argv1?: string): string
 function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[]; examples: string[] }
 function listCommandExamples(app: any, cmdBase?: string): string[]
+type OpenApiParam = { name: string; in: string; required?: boolean; description?: string; schema?: any }
+function listRoutesWithExamplesFromOpenApi(openapi: any, cmdBase?: string): { routes: string[]; examples: string[]; params: OpenApiParam[][] }
 type RunCliResult = { code: number; lines: string[]; req?: Request; res?: Response }
 function runCliDefault(app: any, argvRaw?: string[], options?: AdapterOptions): Promise<RunCliResult>
 // Convenience with side effects (stdout + process.exit when available)
@@ -116,6 +118,49 @@ console.log('POST routes:')
 for (const p of routes) console.log('  POST ' + p)
 console.log('\nCommand examples:')
 for (const ex of examples) console.log('  ' + ex)
+```
+
+From an OpenAPI 3 spec you can also list routes, runnable examples, and parameter details:
+
+```ts
+import { listRoutesWithExamplesFromOpenApi } from 'hono-cli-adapter'
+
+const openapi = {
+  paths: {
+    '/user/{id}': {
+      post: {
+        parameters: [
+          { name: 'email', in: 'query', required: true, description: 'user email', schema: { type: 'string' } }
+        ],
+        requestBody: {
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: { age: { type: 'integer', description: 'user age' } },
+                required: ['age']
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+const { examples, params } = listRoutesWithExamplesFromOpenApi(openapi, 'cmd')
+console.log(examples[0])
+for (const p of params[0].filter((p) => p.in !== 'path')) {
+  console.log(`  --${p.name} (${p.schema?.type}${p.required ? ', required' : ''}) : ${p.description}`)
+}
+```
+
+Outputs:
+
+```
+cmd user <id> --email <email> --age <age>
+  --email (string, required) : user email
+  --age (integer, required) : user age
 ```
 
 ### Hooks and command detection
