@@ -232,7 +232,9 @@ app.post('/upload', async (c) => {
 
   // Step2: multipart upload to signed URL (storage URL, not Slack API)
   const fd = new FormData()
-  fd.append('filename', new Blob([fs.readFileSync(p.file)]), name)
+  // Slack external upload expects the binary under the `file` field,
+  // with the filename provided as the third argument.
+  fd.append('file', new Blob([fs.readFileSync(p.file)]), name)
   const up = await fetch(step1.upload_url, { method: 'POST', body: fd })
   if (!up.ok) return c.json({ ok: false, error: `upload_http_${up.status}` }, 400)
 
