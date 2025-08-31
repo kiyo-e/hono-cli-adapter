@@ -78,7 +78,8 @@ function detectCommandBase(argv0?: string, argv1?: string): string
 function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[]; examples: string[] }
 function listCommandExamples(app: any, cmdBase?: string): string[]
 type OpenApiParam = { name: string; in: string; required?: boolean; description?: string; schema?: any }
-function listRoutesWithExamplesFromOpenApi(openapi: any, cmdBase?: string): { routes: string[]; examples: string[]; params: OpenApiParam[][] }
+function listRoutesWithExamplesFromOpenApi(openapi: any, cmdBase?: string, commentFiles?: string[]): { routes: string[]; examples: string[]; params: OpenApiParam[][] }
+function listRoutesWithExamplesFromComments(files: string[], cmdBase?: string): { routes: string[]; examples: string[]; params: OpenApiParam[][] }
 type RunCliResult = { code: number; lines: string[]; req?: Request; res?: Response }
 function runCliDefault(app: any, argvRaw?: string[], options?: AdapterOptions): Promise<RunCliResult>
 // Convenience with side effects (stdout + process.exit when available)
@@ -162,6 +163,33 @@ cmd user <id> --email <email> --age <age>
   --email (string, required) : user email
   --age (integer, required) : user age
 ```
+
+If you don't maintain an OpenAPI spec, annotate your route files with comments and use the same helpers:
+
+```ts
+// routes/user.ts
+/**
+ * @cliDesc create a user
+ * @cliParam id path user id
+ * @cliParam email query user email required
+ * @cliParam age body user age
+ */
+app.post('/user/:id', handler)
+
+// elsewhere
+import { listRoutesWithExamplesFromComments } from 'hono-cli-adapter'
+const { examples, params } = listRoutesWithExamplesFromComments(['routes/user.ts'], 'cmd')
+```
+
+Each `@cliParam` line follows:
+
+```
+@cliParam <name> <in> <description> [required]
+```
+
+`<in>` is `path`, `query`, or `body`. Append `required` to mark the flag as required. Route descriptions can be provided via `@cliDesc`.
+
+`listRoutesWithExamplesFromOpenApi` accepts a third argument of file paths; when provided, comment annotations are used as a fallback or to supplement routes missing from the OpenAPI spec.
 
 ### Hooks and command detection
 
