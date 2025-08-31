@@ -28,7 +28,11 @@ node ./cli.mjs --help
 - Required: `SLACK_BOT_TOKEN`
 - Optional: `SLACK_USER_TOKEN` (for private channel access, etc.)
 
-Pass repeated `--env KEY=VALUE` flags to merge values into `c.env` via `hono-cli-adapter`.
+By default, `hono-cli-adapter` passes `process.env` into `app.fetch(req, env)`. You can still override or add values via:
+
+- `--env KEY=VALUE` flags (highest precedence)
+- `options.env` from your CLI code (middle)
+
 Example: `node ./cli.mjs whoami --env SLACK_BOT_TOKEN=xoxb-***`
 
 ## Examples
@@ -71,4 +75,3 @@ npm run build:bin
 - Thin handlers that simply `c.json` the Slack client data
 
 Any extra seasoning should live on the CLI side, keeping upstream logic minimal.
-

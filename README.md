@@ -9,7 +9,8 @@ Status: minimal but usable. ESM-only.
 - Library has no side effects: never writes to stdout/stderr.
 - Strong constraints: POST-only philosophy for predictable calls from the shell.
 - Reserved flags: easily exclude your CLI-only flags from HTTP query strings.
-- Env merging: combine `options.env` with repeated `--env KEY=VALUE` flags.
+ - Default env: `process.env` is merged by default.
+ - Env merging: combine `process.env` + `options.env` + repeated `--env KEY=VALUE` flags (later wins).
 - Body tokens: pass `-- key=value` pairs to send JSON payloads.
 
 ## Install
@@ -84,7 +85,10 @@ function runCliAndExit(app: any, argvRaw?: string[], options?: AdapterOptions): 
 
 Key behaviors:
 - Reserved keys default to `['_', '--', 'base', 'env']` and are removed from the query string. Add your own via `options.reservedKeys`.
-- `--env KEY=VALUE` can be repeated; merged into `options.env` with flags taking precedence on conflicts.
+- Environment precedence when calling `app.fetch(req, env)`:
+  1) `process.env` (base, included by default)
+  2) `options.env` (overrides base)
+  3) `--env KEY=VALUE` flags (highest precedence)
 - Tokens after `--` like `key=value` become a JSON body.
 - `buildRequestFromArgv` and `adaptAndFetch` use POST only.
 - `listPostRoutes` is best-effort and relies on Hono’s internal shape. It enumerates POST paths only.

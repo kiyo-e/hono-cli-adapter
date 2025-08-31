@@ -11,7 +11,7 @@ export type BeforeFetchFn = (
 export type AdapterOptions = {
   /** Base path to prefix to argv path segments (e.g. /v1). */
   base?: string
-  /** Env object passed to app.fetch (merged with --env if provided). */
+  /** Env object passed to app.fetch (merged over process.env; --env flags win). */
   env?: Record<string, unknown>
   /** Keys that should NOT be placed into query string (CLI-only flags). */
   reservedKeys?: string[]
@@ -143,8 +143,13 @@ export async function adaptAndFetch(
     const maybe = await hook(req, argv)
     if (maybe instanceof Request) req = maybe
   }
+  // Default: merge full process.env, then options.env, then --env flags (flags win)
   const envFromFlags = parseEnvFlags(argv.env)
-  const mergedEnv = { ...(options?.env ?? {}), ...envFromFlags }
+  const envFromProcess =
+    typeof process !== 'undefined' && (process as any)?.env
+      ? ((process as any).env as Record<string, unknown>)
+      : ({} as Record<string, unknown>)
+  const mergedEnv = { ...envFromProcess, ...(options?.env ?? {}), ...envFromFlags }
   const res = await app.fetch(req, mergedEnv)
   return { req, res }
 }
