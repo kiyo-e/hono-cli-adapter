@@ -5,7 +5,8 @@ import { Hono } from 'hono'
 import {
   commandFromArgv,
   adaptAndFetch,
-  listRoutesWithExamplesFromOpenApi
+  listRoutesWithExamplesFromOpenApi,
+  listRoutesWithExamplesFromComments
 } from '../dist/index.js'
 
 // commandFromArgv tests
@@ -93,3 +94,52 @@ test('listRoutesWithExamplesFromOpenApi extracts params', () => {
     '--age (integer, required) : user age'
   ])
 })
+
+test('listRoutesWithExamplesFromComments extracts params', () => {
+  const file = new URL('./fixtures/commentUser.ts', import.meta.url).pathname
+  const { routes, examples, params } = listRoutesWithExamplesFromComments([file], 'cmd')
+
+  assert.deepEqual(routes, ['/user/:id'])
+  assert.deepEqual(examples, ['cmd user <id> --email <email> --age <age>'])
+  assert.deepEqual(params, [
+    [
+      { name: 'id', in: 'path', required: true, description: 'user id' },
+      { name: 'email', in: 'query', required: true, description: 'user email' },
+      { name: 'age', in: 'body', required: false, description: 'user age' }
+    ]
+  ])
+})
+
+test('listRoutesWithExamplesFromOpenApi merges comment routes', () => {
+  const commentFile = new URL('./fixtures/commentExtra.ts', import.meta.url).pathname
+  const openapi = {
+    paths: {
+      '/user/{id}': {
+        parameters: [
+          { name: 'id', in: 'path', required: true, description: 'user id', schema: { type: 'string' } }
+        ],
+        post: {
+          parameters: [
+            { name: 'email', in: 'query', required: true, description: 'user email', schema: { type: 'string' } }
+          ]
+        }
+      }
+    }
+  }
+
+  const { routes, examples, params } = listRoutesWithExamplesFromOpenApi(openapi, 'cmd', [commentFile])
+
+  assert.deepEqual(routes, ['/user/:id', '/extra/:slug'])
+  assert.deepEqual(examples, ['cmd user <id> --email <email>', 'cmd extra <slug> --token <token>'])
+  assert.deepEqual(params, [
+    [
+      { name: 'id', in: 'path', required: true, description: 'user id', schema: { type: 'string' } },
+      { name: 'email', in: 'query', required: true, description: 'user email', schema: { type: 'string' } }
+    ],
+    [
+      { name: 'slug', in: 'path', required: true, description: 'slug id' },
+      { name: 'token', in: 'query', required: true, description: 'access token' }
+    ]
+  ])
+})
+

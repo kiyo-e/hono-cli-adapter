@@ -1,5 +1,7 @@
 import minimist from 'minimist'
 import path from 'node:path'
+import fs from 'node:fs'
+import { createRequire } from 'node:module'
 
 type AnyObj = Record<string, unknown>
 
@@ -233,9 +235,90 @@ export type OpenApiParam = {
   schema?: any
 }
 
+export function listRoutesWithExamplesFromComments(
+  files: string[],
+  cmdBase?: string
+): { routes: string[]; examples: string[]; params: OpenApiParam[][] } {
+  const base = cmdBase ?? detectCommandBase()
+  const require = createRequire(import.meta.url)
+  const ts: typeof import('typescript') = require('typescript')
+  const routes: string[] = []
+  const examples: string[] = []
+  const params: OpenApiParam[][] = []
+
+  for (const file of files) {
+    let code: string
+    try {
+      code = fs.readFileSync(file, 'utf8')
+    } catch {
+      continue
+    }
+    const source = ts.createSourceFile(file, code, ts.ScriptTarget.Latest, true)
+    const text = source.getFullText()
+
+    const visit = (node: any) => {
+      if (ts.isCallExpression(node)) {
+        const expr = node.expression
+        if (
+          ts.isPropertyAccessExpression(expr) &&
+          expr.name.getText(source) === 'post'
+        ) {
+          const routeArg = node.arguments[0]
+          if (routeArg && ts.isStringLiteral(routeArg)) {
+            const route = routeArg.text
+
+            const commentRanges =
+              ts.getLeadingCommentRanges(text, node.pos) || []
+            const paramList: OpenApiParam[] = []
+            for (const range of commentRanges) {
+              const comment = text.slice(range.pos, range.end)
+              const lines = comment.split(/\r?\n/)
+              for (const line of lines) {
+                const m = line.match(/@cliParam\s+([\w-]+)\s+([\w-]+)\s+(.*)/)
+                if (m) {
+                  let desc = m[3].trim()
+                  let required = false
+                  if (/\srequired$/.test(desc)) {
+                    required = true
+                    desc = desc.replace(/\srequired$/, '').trim()
+                  }
+                  const loc = m[2]
+                  paramList.push({
+                    name: m[1],
+                    in: loc,
+                    required: required || loc === 'path',
+                    description: desc
+                  })
+                }
+              }
+            }
+
+            routes.push(route)
+            params.push(paramList)
+
+            const segs = routePathToCommandSegments(route)
+            let example = base + (segs.length ? ' ' + segs.join(' ') : '')
+            for (const p of paramList) {
+              if (p.in === 'query' || p.in === 'body') {
+                example += ` --${p.name} <${p.name}>`
+              }
+            }
+            examples.push(example)
+          }
+        }
+      }
+      ts.forEachChild(node, visit)
+    }
+    ts.forEachChild(source, visit)
+  }
+
+  return { routes, examples, params }
+}
+
 export function listRoutesWithExamplesFromOpenApi(
   openapi: any,
-  cmdBase?: string
+  cmdBase?: string,
+  commentFiles?: string[]
 ): { routes: string[]; examples: string[]; params: OpenApiParam[][] } {
   const paths = openapi?.paths || {}
   const base = cmdBase ?? detectCommandBase()
@@ -289,6 +372,18 @@ export function listRoutesWithExamplesFromOpenApi(
       }
     }
     examples.push(example)
+  }
+
+  if (commentFiles && commentFiles.length) {
+    const fromComments = listRoutesWithExamplesFromComments(commentFiles, base)
+    for (let i = 0; i < fromComments.routes.length; i++) {
+      const r = fromComments.routes[i]
+      if (!routes.includes(r)) {
+        routes.push(r)
+        examples.push(fromComments.examples[i])
+        params.push(fromComments.params[i])
+      }
+    }
   }
 
   return { routes, examples, params }
