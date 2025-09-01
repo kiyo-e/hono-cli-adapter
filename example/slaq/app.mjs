@@ -104,6 +104,11 @@ const SThreadGet = z.object({
   ts: z.union([z.string(), z.number()]).transform(v => String(v))
 })
 
+// Find the most-recent thread parent in a channel
+const SThreadLatest = z.object({
+  channel: z.string().min(1)
+})
+
 const SChannelsList = z.object({
   // comma separated: public_channel,private_channel,mpim,im
   types: z.string().optional(),
@@ -113,6 +118,18 @@ const SChannelsList = z.object({
   cursor: z.string().optional(),
   team_id: z.string().optional(),
   // Slack accepts true/false; stringify to "true"/"false"
+  exclude_archived: z.union([z.string(), z.number(), z.boolean()]).optional()
+    .transform(v => (v == null ? undefined : String(v)))
+})
+
+// Helper: find channel by name (server-side pagination)
+const SChannelsFind = z.object({
+  name: z.string().min(1),
+  // comma separated types; default to public+private for typical channels
+  types: z.string().optional(),
+  // optional team filter passthrough
+  team_id: z.string().optional(),
+  // include archived when true (stringified)
   exclude_archived: z.union([z.string(), z.number(), z.boolean()]).optional()
     .transform(v => (v == null ? undefined : String(v)))
 })
@@ -171,6 +188,26 @@ app.post('/thread.get', async (c) => {
   return c.json(data, data.ok ? 200 : 400)
 })
 
+// /thread.latest -> scan conversations.history for most recent message with replies
+app.use('/thread.latest', useToken('any'), validateMerged(SThreadLatest))
+app.post('/thread.latest', async (c) => {
+  const p = c.get('p')
+  let cursor
+  for (let i = 0; i < 10; i++) {
+    const hist = await slackData('conversations.history', { channel: p.channel, limit: '200', cursor }, c.get('authToken'))
+    if (!hist.ok) return c.json(hist, 400)
+    const parent = (hist.messages || []).find(m => m.thread_ts && m.reply_count > 0 && m.ts === m.thread_ts)
+    if (parent) {
+      const rep = await slackData('conversations.replies', { channel: p.channel, ts: parent.ts }, c.get('authToken'))
+      if (!rep.ok) return c.json(rep, 400)
+      return c.json({ ok: true, channel: p.channel, parent, thread: rep.messages })
+    }
+    cursor = hist.response_metadata?.next_cursor
+    if (!cursor) break
+  }
+  return c.json({ ok: false, error: 'no_threads_found' }, 404)
+})
+
 // /channels.list -> conversations.list (list channels/conversations)
 app.use('/channels.list', useToken('any'), validateMerged(SChannelsList))
 app.post('/channels.list', async (c) => {
@@ -186,6 +223,32 @@ app.post('/channels.list', async (c) => {
     c.get('authToken')
   )
   return c.json(data, data.ok ? 200 : 400)
+})
+
+// /channels.find -> paginate conversations.list server-side until a name match
+app.use('/channels.find', useToken('any'), validateMerged(SChannelsFind))
+app.post('/channels.find', async (c) => {
+  const p = c.get('p')
+  const target = String(p.name).toLowerCase()
+  let cursor
+  const paramsBase = {
+    types: p.types ?? 'public_channel,private_channel,mpim,im',
+    team_id: p.team_id,
+    exclude_archived: p.exclude_archived
+  }
+  for (let i = 0; i < 50; i++) { // hard cap to avoid endless loop
+    const data = await slackData('conversations.list', { ...paramsBase, limit: '200', cursor }, c.get('authToken'))
+    if (!data.ok) return c.json(data, 400)
+    const hit = (data.channels || []).find(ch => {
+      const n = (ch.name || '').toLowerCase()
+      const nn = (ch.name_normalized || '').toLowerCase()
+      return n === target || nn === target
+    })
+    if (hit) return c.json({ ok: true, channel: hit })
+    cursor = data.response_metadata?.next_cursor
+    if (!cursor) break
+  }
+  return c.json({ ok: false, error: 'not_found', name: p.name }, 404)
 })
 
 // /files.list -> files.list
