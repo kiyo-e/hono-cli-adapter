@@ -19,6 +19,12 @@ export type AdapterOptions = {
   beforeFetch?: BeforeFetchFn | Record<string, BeforeFetchFn>
 }
 
+export type ProcLike = {
+  argv?: any[]
+  stdout?: { write?: (s: string) => unknown }
+  exit?: (code?: number) => unknown
+}
+
 const DEFAULT_RESERVED = new Set(['_', '--', 'base', 'env'])
 
 /**
@@ -333,11 +339,30 @@ const FLAG_DESCRIPTIONS: Record<string, string> = {
  * Body tokens: append `-- key=value` pairs to send a JSON body.
  * Any additional CLI-only flags should be excluded via `options.reservedKeys` if you pass them to adapt.
  */
-export async function runCliDefault(
+export async function runCli(
   app: any,
-  argvRaw: string[] = typeof process !== 'undefined' ? process.argv.slice(2) : [],
+  argvOrProc?: string[] | ProcLike | AdapterOptions,
   options?: AdapterOptions
 ): Promise<RunCliResult> {
+  let opts = options
+  const defaultArgv =
+    typeof process !== 'undefined' && Array.isArray((process as any).argv)
+      ? (process as any).argv.slice(2)
+      : []
+  let argvRaw: string[]
+
+  const maybeProc = argvOrProc as ProcLike | undefined
+  if (Array.isArray(argvOrProc)) {
+    argvRaw = argvOrProc
+  } else if (maybeProc && (Array.isArray(maybeProc.argv) || maybeProc.stdout || maybeProc.exit)) {
+    argvRaw = Array.isArray(maybeProc.argv) ? maybeProc.argv.slice(2) : defaultArgv
+  } else if (argvOrProc && typeof argvOrProc === 'object') {
+    opts = argvOrProc as AdapterOptions
+    argvRaw = defaultArgv
+  } else {
+    argvRaw = defaultArgv
+  }
+
   const argv = minimist(argvRaw, MINIMIST_GLOBAL)
 
   if (argv.list || argv.help) {
@@ -351,9 +376,9 @@ export async function runCliDefault(
 
   const { req, res } = await adaptAndFetch(app, argvRaw, {
     base: argv.base,
-    env: options?.env,
-    reservedKeys: [...Object.keys(globalFlagTypes), ...(options?.reservedKeys ?? [])],
-    beforeFetch: options?.beforeFetch
+    env: opts?.env,
+    reservedKeys: [...Object.keys(globalFlagTypes), ...(opts?.reservedKeys ?? [])],
+    beforeFetch: opts?.beforeFetch
   })
 
   // Default format: JSON pretty if requested and parsable, otherwise raw text.
@@ -378,28 +403,41 @@ export async function runCliDefault(
  * - Prints each output line to stdout.
  * - Exits the process with the derived exit code when available.
  *
- * Keeps the core `runCliDefault` pure while offering a one-liner entrypoint
+ * Keeps the core `runCli` pure while offering a one-liner entrypoint
  * for bin scripts. If `process` is unavailable (non-Node runtimes), printing
  * falls back to `console.log` and no forced exit is attempted.
  */
-export async function runCliAndExit(
+export async function cli(
   app: any,
-  argvRaw: string[] = typeof process !== 'undefined' ? process.argv.slice(2) : [],
+  argvOrProc?: string[] | ProcLike | AdapterOptions,
   options?: AdapterOptions
 ): Promise<number> {
-  const { code, lines } = await runCliDefault(app, argvRaw, options)
+  // Resolve proc (for I/O + exit) and argv
+  const defaultProc: ProcLike | undefined =
+    typeof process !== 'undefined' ? (process as unknown as ProcLike) : undefined
+  const procLike: ProcLike | undefined = (argvOrProc && (Array.isArray((argvOrProc as any).argv) || (argvOrProc as any).stdout || (argvOrProc as any).exit))
+    ? (argvOrProc as ProcLike)
+    : defaultProc
 
-  const hasStdout = typeof process !== 'undefined' && (process as any).stdout &&
-    typeof (process as any).stdout.write === 'function'
+  const argvRaw: string[] = Array.isArray(argvOrProc)
+    ? argvOrProc
+    : (procLike?.argv ? procLike.argv.slice(2) : (defaultProc?.argv ? defaultProc.argv.slice(2) : []))
 
-  if (hasStdout) {
-    for (const l of lines) (process as any).stdout.write(String(l) + '\n')
+  const { code, lines } = await runCli(
+    app,
+    argvRaw,
+    (argvOrProc && !Array.isArray(argvOrProc) && !(procLike === argvOrProc)) ? (argvOrProc as AdapterOptions) : options
+  )
+
+  const w = typeof procLike?.stdout?.write === 'function'
+    ? procLike.stdout.write.bind(procLike.stdout)
+    : undefined
+  if (w) {
+    for (const l of lines) w(String(l) + '\n')
   } else {
     for (const l of lines) console.log(String(l))
   }
 
-  if (typeof process !== 'undefined' && typeof (process as any).exit === 'function') {
-    ;(process as any).exit(code)
-  }
+  if (typeof procLike?.exit === 'function') procLike.exit(code)
   return code
 }

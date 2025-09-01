@@ -6,7 +6,7 @@ import {
   commandFromArgv,
   adaptAndFetch,
   listRoutesWithExamplesFromOpenApi,
-  runCliDefault
+  runCli
 } from '../dist/index.js'
 
 // commandFromArgv tests
@@ -95,10 +95,10 @@ test('listRoutesWithExamplesFromOpenApi extracts params', () => {
   ])
 })
 
-test('runCliDefault help lists global flags', async () => {
+test('runCli help lists global flags', async () => {
   const app = new Hono()
   app.post('/ping', (c) => c.text('pong'))
-  const { lines } = await runCliDefault(app, ['--help'])
+  const { lines } = await runCli(app, ['--help'])
   assert.equal(lines.includes('Flags:'), true)
   assert(lines.some((l) => l.includes('--json')))
 })

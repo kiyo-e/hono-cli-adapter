@@ -9,8 +9,8 @@ Status: minimal but usable. ESM-only.
 - Library has no side effects: never writes to stdout/stderr.
 - Strong constraints: POST-only philosophy for predictable calls from the shell.
 - Reserved flags: easily exclude your CLI-only flags from HTTP query strings.
- - Default env: `process.env` is merged by default.
- - Env merging: combine `process.env` + `options.env` + repeated `--env KEY=VALUE` flags (later wins).
+- Default env: `process.env` is merged by default.
+- Env merging: combine `process.env` + `options.env` + repeated `--env KEY=VALUE` flags (later wins).
 - Body tokens: pass `-- key=value` pairs to send JSON payloads.
 
 ## Install
@@ -25,68 +25,76 @@ Peer/runtime expectations:
 ## Quick Start
 Create a tiny CLI that wraps your existing Hono app. Your CLI controls output and flags; the adapter only builds the request and calls `app.fetch`.
 
+Default (recommended): one‑liner bin that prints and exits for you.
+
 ```ts
 #!/usr/bin/env node
 // my-cli.ts (ESM)
-import { runCliDefault } from 'hono-cli-adapter'
+import { cli } from 'hono-cli-adapter'
 import { app } from './dist/app.js' // your Hono app export
 
-const { code, lines } = await runCliDefault(app, process.argv.slice(2))
+// Pass a process-like object (for argv/stdout/exit) or omit.
+await cli(app, process) // or simply: await cli(app)
+```
+
+Pure/no‑stdout variant when you want to fully control printing and exiting yourself:
+
+```ts
+#!/usr/bin/env node
+import { runCli } from 'hono-cli-adapter'
+import { app } from './dist/app.js'
+
+const { code, lines } = await runCli(app, process) // or runCli(app)
 for (const l of lines) console.log(l)
 process.exit(code)
 ```
 
-Ultra‑simple (one‑liner) bin using the convenience wrapper that prints and exits for you:
-
-```ts
-#!/usr/bin/env node
-import { runCliAndExit } from 'hono-cli-adapter'
-import { app } from './dist/app.js'
-
-await runCliAndExit(app, process.argv.slice(2))
-```
-
 ## API
-Exported from `src/index.ts:1`:
+Exported from `src/index.ts`:
 
 ```ts
+type BeforeFetchFn = (req: Request, argv: minimist.ParsedArgs) => Promise<Request | void> | Request | void
+
 type AdapterOptions = {
   base?: string
   env?: Record<string, unknown>
   reservedKeys?: string[]
-  beforeFetch?:
-    | ((req: Request, argv: minimist.ParsedArgs) => Promise<Request | void> | Request | void)
-    | Record<string, (req: Request, argv: minimist.ParsedArgs) => Promise<Request | void> | Request | void>
+  beforeFetch?: BeforeFetchFn | Record<string, BeforeFetchFn>
 }
 
-function listPostRoutes(app: any): string[]
-function buildUrlFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): URL
-function parseEnvFlags(envFlags: string | string[] | undefined): Record<string, string>
-function parseBodyTokens(tokens: string | string[] | undefined): Record<string, string>
-function buildRequestFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): Request
-function commandFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): string | undefined
+// High-level (recommended for CLI bins)
+type RunCliResult = { code: number; lines: string[]; req?: Request; res?: Response }
+type ProcLike = { argv?: any[]; stdout?: { write?: (s: string) => unknown }; exit?: (code?: number) => unknown }
+function cli(app: any, argvOrProcess?: string[] | ProcLike | AdapterOptions, options?: AdapterOptions): Promise<number>
+function runCli(app: any, argvOrProcess?: string[] | ProcLike | AdapterOptions, options?: AdapterOptions): Promise<RunCliResult>
+
+// Mid-level
 function adaptAndFetch(
   app: any,
   argvRaw?: string[] /* defaults to process.argv.slice(2) */,
   options?: AdapterOptions
 ): Promise<{ req: Request; res: Response }>
-// New helpers (no stdout)
+
+// Request building
+function buildUrlFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): URL
+function buildRequestFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): Request
+function parseEnvFlags(envFlags: string | string[] | undefined): Record<string, string>
+function parseBodyTokens(tokens: string | string[] | undefined): Record<string, string>
+function commandFromArgv(argv: minimist.ParsedArgs, options?: AdapterOptions): string | undefined
+
+// Route helpers
+function listPostRoutes(app: any): string[]
 function routePathToCommandSegments(routePath: string): string[]
 function buildCommandExample(routePath: string, cmdBase: string): string
 function buildCommandExamples(routes: string[], cmdBase: string): string[]
 function detectCommandBase(argv0?: string, argv1?: string): string
 function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[]; examples: string[] }
 function listCommandExamples(app: any, cmdBase?: string): string[]
-type OpenApiParam = { name: string; in: string; required?: boolean; description?: string; schema?: any }
-function listRoutesWithExamplesFromOpenApi(openapi: any, cmdBase?: string): { routes: string[]; examples: string[]; params: OpenApiParam[][] }
-type RunCliResult = { code: number; lines: string[]; req?: Request; res?: Response }
-function runCliDefault(app: any, argvRaw?: string[], options?: AdapterOptions): Promise<RunCliResult>
-// Convenience with side effects (stdout + process.exit when available)
-function runCliAndExit(app: any, argvRaw?: string[], options?: AdapterOptions): Promise<number>
 ```
 
 Key behaviors:
 - Reserved keys default to `['_', '--', 'base', 'env']` and are removed from the query string. Add your own via `options.reservedKeys`.
+- `runCli`/`cli` also reserve global flags automatically: `json`, `list`, `help`, `base`, `env`.
 - Environment precedence when calling `app.fetch(req, env)`:
   1) `process.env` (base, included by default)
   2) `options.env` (overrides base)
@@ -96,9 +104,9 @@ Key behaviors:
 - `listPostRoutes` is best-effort and relies on Hono’s internal shape. It enumerates POST paths only.
 
 ## Usage Patterns
-Two ways to integrate:
+Two ways to integrate (besides the default `cli` above):
 
-1) High-level (simplest): let the adapter parse `argvRaw` for the common flags `--base`, `--env`.
+1) High-level: let the adapter parse `argvRaw` for the common flags `--base`, `--env`.
 ```ts
 const { res } = await adaptAndFetch(app, process.argv.slice(2), { reservedKeys: ['json'] })
 ```
@@ -118,49 +126,6 @@ console.log('POST routes:')
 for (const p of routes) console.log('  POST ' + p)
 console.log('\nCommand examples:')
 for (const ex of examples) console.log('  ' + ex)
-```
-
-From an OpenAPI 3 spec you can also list routes, runnable examples, and parameter details:
-
-```ts
-import { listRoutesWithExamplesFromOpenApi } from 'hono-cli-adapter'
-
-const openapi = {
-  paths: {
-    '/user/{id}': {
-      post: {
-        parameters: [
-          { name: 'email', in: 'query', required: true, description: 'user email', schema: { type: 'string' } }
-        ],
-        requestBody: {
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: { age: { type: 'integer', description: 'user age' } },
-                required: ['age']
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-}
-
-const { examples, params } = listRoutesWithExamplesFromOpenApi(openapi, 'cmd')
-console.log(examples[0])
-for (const p of params[0].filter((p) => p.in !== 'path')) {
-  console.log(`  --${p.name} (${p.schema?.type}${p.required ? ', required' : ''}) : ${p.description}`)
-}
-```
-
-Outputs:
-
-```
-cmd user <id> --email <email> --age <age>
-  --email (string, required) : user email
-  --age (integer, required) : user age
 ```
 
 ### Hooks and command detection
@@ -213,7 +178,7 @@ npm run build:example:bin
 ## Design Notes
 - POST-only now; adding other methods can be an additive future feature when/if needed.
 - The adapter never writes to stdout — your CLI formats results (plain text, JSON, etc.).
-- Use `reservedKeys` to prevent your CLI flags (e.g. `--json`, `--list`) from leaking into HTTP queries.
+- `runCli` automatically excludes the global CLI flags from the query. Add more via `reservedKeys` when needed.
 
 ## Compatibility
 - ESM only. If you need CJS, transpile on your side.
