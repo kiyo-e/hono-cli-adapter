@@ -39,7 +39,7 @@ This produces `example/basic/bin/hono-example`.
 ## What’s inside
 
 - `example/basic/app.mjs` — minimal Hono app
-- `example/basic/cli.mjs` — small CLI using `adaptAndFetch()`
+- `example/basic/cli.mjs` — small CLI using `cli()`
 
 Flags understood by the CLI:
 

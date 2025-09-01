@@ -5,7 +5,7 @@
       "name": "slaq-cli",
       "dependencies": {
         "hono": "^4.9.5",
-        "hono-cli-adapter": "^0.1.1",
+        "hono-cli-adapter": "0.1.3",
         "zod": "^3.23.8",
       },
     },
@@ -13,7 +13,7 @@
   "packages": {
     "hono": ["hono@4.9.5", "", {}, "sha512-aLAVl5/67ifNnoFVxnhR89dpmSLsgwBprw/PT671ASwUpJqmd7Ne8KPTQo37DbRZfgpHaHeZ4bPVUvbOkeedMw=="],
 
-    "hono-cli-adapter": ["hono-cli-adapter@0.1.1", "", { "dependencies": { "minimist": "^1.2.8" } }, "sha512-LZJ0csbw2A3zkMg+Q+ry9fbGCVUNDP7tzWHxuCAARwsQ1gbx558bDYITILokKwZzcLToIzEQ4l+tBckxePL/sQ=="],
+    "hono-cli-adapter": ["hono-cli-adapter@0.1.3", "", { "dependencies": { "minimist": "^1.2.8" } }, "sha512-IxZfJSZlscw1ZEcNMx3so8HjytnmXy6q+pQDSeiix6coRTinEugA0wSOOXTm8jVTRbPn+gGiAKKzueYPPrpxnQ=="],
 
     "minimist": ["minimist@1.2.8", "", {}, "sha512-2yyAR8qBkN3YuheJanUpWC5U3bb5osDywNB8RzDVlDwDHbocAJveqqj1u8+SVD7jkWT4yvsHCpWqqWqAxb0zCA=="],
 

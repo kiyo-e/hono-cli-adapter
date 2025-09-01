@@ -34,7 +34,7 @@ import { cli } from 'hono-cli-adapter'
 import { app } from './dist/app.js' // your Hono app export
 
 // Pass a process-like object (for argv/stdout/exit) or omit.
-await cli(app, process) // or simply: await cli(app)
+await cli(app) // or simply: await cli(app)
 ```
 
 Pure/no‑stdout variant when you want to fully control printing and exiting yourself:
