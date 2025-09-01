@@ -1,9 +1,9 @@
 {
   "name": "hono-cli-adapter",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "license": "MIT",
-  "description": "Adapt CLI argv to a POST Request for a Hono app (ESM).",
+  "description": "Adapt CLI argv for a Hono app",
   "author": "K.Endo",
   "repository": {
     "type": "git",
