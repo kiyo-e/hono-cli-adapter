@@ -8,11 +8,18 @@ export type BeforeFetchFn = (
   argv: minimist.ParsedArgs
 ) => Promise<Request | void> | Request | void
 
+export type OpenApiSpec = Record<string, unknown>
+export type OpenApiProvider =
+  | OpenApiSpec
+  | (() => OpenApiSpec | Promise<OpenApiSpec>)
+
 export type AdapterOptions = {
   /** Base path to prefix to argv path segments (e.g. /v1). */
   base?: string
   /** Env object passed to app.fetch (merged over process.env; --env flags win). */
   env?: Record<string, unknown>
+  /** OpenAPI spec (or provider) used to enrich --help output. */
+  openapi?: OpenApiProvider
   /** Keys that should NOT be placed into query string (CLI-only flags). */
   reservedKeys?: string[]
   /** Hook to modify Request before fetch. */
@@ -300,6 +307,102 @@ export function listRoutesWithExamplesFromOpenApi(
   return { routes, examples, params }
 }
 
+function formatSchemaType(schema: any): string | undefined {
+  if (!schema) return
+  if (schema.$ref && typeof schema.$ref === 'string') {
+    const parts = schema.$ref.split('/')
+    return parts[parts.length - 1]
+  }
+  const list = (schema.oneOf || schema.anyOf || schema.allOf) as any[] | undefined
+  if (list && Array.isArray(list)) {
+    const types = list.map(formatSchemaType).filter(Boolean)
+    const uniq = [...new Set(types)]
+    return uniq.length ? uniq.join(' | ') : undefined
+  }
+
+  let base: string | undefined
+  if (Array.isArray(schema.type)) base = schema.type.join(' | ')
+  else if (schema.type) base = schema.type
+  else if (schema.enum) base = 'enum'
+  else if (schema.items) base = 'array'
+  else if (schema.properties) base = 'object'
+  if (!base) return
+
+  if (base === 'array') {
+    const item = formatSchemaType(schema.items)
+    base = item ? `${item}[]` : 'array'
+  }
+
+  if (schema.format) return `${base}(${schema.format})`
+  return base
+}
+
+function formatDefaultValue(value: unknown): string {
+  if (typeof value === 'string') return JSON.stringify(value)
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (value == null) return String(value)
+  try {
+    return JSON.stringify(value)
+  } catch {
+    return String(value)
+  }
+}
+
+function formatParamLabel(p: OpenApiParam): string {
+  if (p.in === 'path') return `<${p.name}>`
+  if (p.in === 'header') return `--header:${p.name}`
+  if (p.in === 'cookie') return `--cookie:${p.name}`
+  return `--${p.name}`
+}
+
+function formatParamHelpLine(p: OpenApiParam): string {
+  const type = formatSchemaType(p.schema)
+  const required = p.required || p.in === 'path'
+  const def = (p as any)?.default ?? p.schema?.default
+  const desc = p.description || p.schema?.description
+  const details: string[] = []
+  if (type && type !== 'unknown') details.push(type)
+  details.push(required ? 'required' : 'optional')
+  if (p.in) details.push(p.in)
+  if (def !== undefined) details.push(`default=${formatDefaultValue(def)}`)
+  return `${formatParamLabel(p)} (${details.join(', ')})${desc ? ' : ' + desc : ''}`
+}
+
+function buildParamHelpLines(params: OpenApiParam[]): string[] {
+  const order: Record<string, number> = {
+    path: 0,
+    query: 1,
+    body: 2,
+    header: 3,
+    cookie: 4
+  }
+  return [...params]
+    .sort((a, b) => {
+      const aOrder = order[a.in] ?? 99
+      const bOrder = order[b.in] ?? 99
+      if (aOrder !== bOrder) return aOrder - bOrder
+      return a.name.localeCompare(b.name)
+    })
+    .map(formatParamHelpLine)
+}
+
+export function listHelpLinesFromOpenApi(openapi: any, cmdBase?: string): string[] {
+  const { examples, params } = listRoutesWithExamplesFromOpenApi(openapi, cmdBase)
+  const lines: string[] = []
+
+  for (let i = 0; i < examples.length; i++) {
+    lines.push(examples[i])
+    const paramLines = buildParamHelpLines(params[i] || [])
+    if (paramLines.length) {
+      lines.push('  Params:')
+      for (const line of paramLines) lines.push('  ' + line)
+    }
+    if (i !== examples.length - 1) lines.push('')
+  }
+
+  return lines
+}
+
 export type RunCliResult = {
   code: number
   lines: string[]
@@ -366,7 +469,16 @@ export async function runCli(
   const argv = minimist(argvRaw, MINIMIST_GLOBAL)
 
   if (argv.list || argv.help) {
-    const lines = listCommandExamples(app, detectCommandBase())
+    const base = detectCommandBase()
+    let openapi: OpenApiSpec | undefined
+    if (opts?.openapi) {
+      openapi = typeof opts.openapi === 'function' ? await opts.openapi() : opts.openapi
+    }
+    const lines = openapi
+      ? (argv.help
+        ? listHelpLinesFromOpenApi(openapi, base)
+        : listRoutesWithExamplesFromOpenApi(openapi, base).examples)
+      : listCommandExamples(app, base)
     if (argv.help) {
       const flagLines = Object.keys(globalFlagTypes).map((k) => `--${k} - ${FLAG_DESCRIPTIONS[k]}`)
       lines.push('', 'Flags:', ...flagLines)

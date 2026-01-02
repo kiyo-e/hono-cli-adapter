@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
+import { describeRoute, resolver } from 'hono-openapi'
 import { z } from 'zod'
+import 'zod-openapi/extend'
 
 /** ----------------------------------------------------------------
  * Slack client (form-only, no retries) - returns data
@@ -87,71 +89,94 @@ const validateMerged = (schema) => async (c, next) => {
   await next()
 }
 
+const describeMergedParams = (summary, schema) =>
+  describeRoute({
+    description: summary,
+    requestBody: {
+      content: {
+        'application/json': {
+          schema: resolver(schema)
+        }
+      }
+    },
+    responses: {
+      200: { description: 'OK' },
+      400: { description: 'Bad Request' }
+    }
+  })
+
 /** ----------------------------------------------------------------
  * Zod Schemas
  * ---------------------------------------------------------------- */
 const SWhoami = z.object({})
 
 const SPost = z.object({
-  channel: z.string().min(1),
-  text: z.string().optional(),
+  channel: z.string().min(1).describe('Slack channel ID'),
+  text: z.string().optional().describe('Message text'),
   thread_ts: z.union([z.string(), z.number()]).optional()
     .transform(v => (v == null ? undefined : String(v)))
+    .describe('Thread timestamp')
 })
 
 const SThreadGet = z.object({
-  channel: z.string().min(1),
+  channel: z.string().min(1).describe('Slack channel ID'),
   ts: z.union([z.string(), z.number()]).transform(v => String(v))
+    .describe('Parent message timestamp')
 })
 
 // Find the most-recent thread parent in a channel
 const SThreadLatest = z.object({
-  channel: z.string().min(1)
+  channel: z.string().min(1).describe('Slack channel ID')
 })
 
 const SChannelsList = z.object({
   // comma separated: public_channel,private_channel,mpim,im
-  types: z.string().optional(),
+  types: z.string().optional().describe('Comma-separated channel types'),
   // Slack expects number; we stringify for form encoding
   limit: z.union([z.string(), z.number()]).optional()
-    .transform(v => (v == null ? undefined : String(v))),
-  cursor: z.string().optional(),
-  team_id: z.string().optional(),
+    .transform(v => (v == null ? undefined : String(v)))
+    .describe('Max results (string or number)'),
+  cursor: z.string().optional().describe('Pagination cursor'),
+  team_id: z.string().optional().describe('Team filter'),
   // Slack accepts true/false; stringify to "true"/"false"
   exclude_archived: z.union([z.string(), z.number(), z.boolean()]).optional()
     .transform(v => (v == null ? undefined : String(v)))
+    .describe('Include archived when true')
 })
 
 // Helper: find channel by name (server-side pagination)
 const SChannelsFind = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).describe('Channel name'),
   // comma separated types; default to public+private for typical channels
-  types: z.string().optional(),
+  types: z.string().optional().describe('Comma-separated types (default public+private)'),
   // optional team filter passthrough
-  team_id: z.string().optional(),
+  team_id: z.string().optional().describe('Team filter'),
   // include archived when true (stringified)
   exclude_archived: z.union([z.string(), z.number(), z.boolean()]).optional()
     .transform(v => (v == null ? undefined : String(v)))
+    .describe('Include archived when true')
 })
 
 const SFilesList = z.object({
-  channel: z.string().min(1),
+  channel: z.string().min(1).describe('Slack channel ID'),
   count: z.union([z.string(), z.number()]).optional()
     .transform(v => (v == null ? undefined : String(v)))
+    .describe('Max results')
 })
 
 const SFilesDownload = z.object({
-  file_id: z.string().min(1),
-  out: z.string().min(1)
+  file_id: z.string().min(1).describe('Slack file ID'),
+  out: z.string().min(1).describe('Output file path')
 })
 
 const SUpload = z.object({
-  channel: z.string().min(1),
-  file: z.string().min(1),
-  title: z.string().optional(),
-  comment: z.string().optional(),
+  channel: z.string().min(1).describe('Slack channel ID'),
+  file: z.string().min(1).describe('Local file path'),
+  title: z.string().optional().describe('Title for file'),
+  comment: z.string().optional().describe('Initial comment'),
   thread_ts: z.union([z.string(), z.number()]).optional()
     .transform(v => (v == null ? undefined : String(v)))
+    .describe('Thread timestamp')
 })
 
 /** ----------------------------------------------------------------
@@ -161,14 +186,14 @@ const SUpload = z.object({
 
 // /whoami -> auth.test
 app.use('/whoami', useToken('bot'), validateMerged(SWhoami))
-app.post('/whoami', async (c) => {
+app.post('/whoami', describeMergedParams('auth.test', SWhoami), async (c) => {
   const data = await slackData('auth.test', {}, c.get('authToken'))
   return c.json(data, data.ok ? 200 : 400)
 })
 
 // /post -> chat.postMessage
 app.use('/post', useToken('bot'), validateMerged(SPost))
-app.post('/post', async (c) => {
+app.post('/post', describeMergedParams('chat.postMessage', SPost), async (c) => {
   const p = c.get('p')
   const data = await slackData('chat.postMessage',
     { channel: p.channel, text: p.text ?? '', thread_ts: p.thread_ts },
@@ -179,7 +204,7 @@ app.post('/post', async (c) => {
 
 // /thread.get -> conversations.replies
 app.use('/thread.get', useToken('any'), validateMerged(SThreadGet))
-app.post('/thread.get', async (c) => {
+app.post('/thread.get', describeMergedParams('conversations.replies', SThreadGet), async (c) => {
   const p = c.get('p')
   const data = await slackData('conversations.replies',
     { channel: p.channel, ts: p.ts },
@@ -190,7 +215,7 @@ app.post('/thread.get', async (c) => {
 
 // /thread.latest -> scan conversations.history for most recent message with replies
 app.use('/thread.latest', useToken('any'), validateMerged(SThreadLatest))
-app.post('/thread.latest', async (c) => {
+app.post('/thread.latest', describeMergedParams('conversations.history (scan latest thread)', SThreadLatest), async (c) => {
   const p = c.get('p')
   let cursor
   for (let i = 0; i < 10; i++) {
@@ -210,7 +235,7 @@ app.post('/thread.latest', async (c) => {
 
 // /channels.list -> conversations.list (list channels/conversations)
 app.use('/channels.list', useToken('any'), validateMerged(SChannelsList))
-app.post('/channels.list', async (c) => {
+app.post('/channels.list', describeMergedParams('conversations.list', SChannelsList), async (c) => {
   const p = c.get('p')
   const data = await slackData('conversations.list',
     {
@@ -227,7 +252,7 @@ app.post('/channels.list', async (c) => {
 
 // /channels.find -> paginate conversations.list server-side until a name match
 app.use('/channels.find', useToken('any'), validateMerged(SChannelsFind))
-app.post('/channels.find', async (c) => {
+app.post('/channels.find', describeMergedParams('conversations.list (find by name)', SChannelsFind), async (c) => {
   const p = c.get('p')
   const target = String(p.name).toLowerCase()
   let cursor
@@ -253,7 +278,7 @@ app.post('/channels.find', async (c) => {
 
 // /files.list -> files.list
 app.use('/files.list', useToken('bot'), validateMerged(SFilesList))
-app.post('/files.list', async (c) => {
+app.post('/files.list', describeMergedParams('files.list', SFilesList), async (c) => {
   const p = c.get('p')
   const data = await slackData('files.list',
     { channel: p.channel, count: p.count ?? '20' },
@@ -264,7 +289,7 @@ app.post('/files.list', async (c) => {
 
 // /files.download -> fetch URL via files.info, GET signed URL, save locally
 app.use('/files.download', useToken('any'), validateMerged(SFilesDownload))
-app.post('/files.download', async (c) => {
+app.post('/files.download', describeMergedParams('files.info + direct download', SFilesDownload), async (c) => {
   const p = c.get('p')
 
   const info = await slackData('files.info', { file: p.file_id }, c.get('authToken'))
@@ -283,7 +308,7 @@ app.post('/files.download', async (c) => {
 
 // /upload -> external upload steps (Step1: issue URL, Step2: direct multipart PUT/POST, Step3: finalize share)
 app.use('/upload', useToken('bot'), validateMerged(SUpload))
-app.post('/upload', async (c) => {
+app.post('/upload', describeMergedParams('files.getUploadURLExternal + files.completeUploadExternal', SUpload), async (c) => {
   const p = c.get('p')
   const fs = await import('node:fs')
   const name = p.title || String(p.file).split('/').pop()

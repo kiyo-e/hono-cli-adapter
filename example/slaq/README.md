@@ -24,6 +24,8 @@ node ./cli.mjs --list
 node ./cli.mjs --help
 ```
 
+`--help` now uses OpenAPI metadata (from `describeRoute` + Zod `.describe(...)`) to show per-parameter details (type, required/optional, description, default when provided).
+
 ### Environment variables
 - Required: `SLACK_BOT_TOKEN`
 - Optional: `SLACK_USER_TOKEN` (for private channel access, etc.)

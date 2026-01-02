@@ -6,6 +6,7 @@ import {
   commandFromArgv,
   adaptAndFetch,
   listRoutesWithExamplesFromOpenApi,
+  listHelpLinesFromOpenApi,
   runCli
 } from '../dist/index.js'
 
@@ -95,10 +96,75 @@ test('listRoutesWithExamplesFromOpenApi extracts params', () => {
   ])
 })
 
+test('listHelpLinesFromOpenApi includes details', () => {
+  const openapi = {
+    paths: {
+      '/ping/{id}': {
+        parameters: [
+          { name: 'id', in: 'path', required: true, description: 'ping id', schema: { type: 'string' } }
+        ],
+        post: {
+          parameters: [
+            { name: 'token', in: 'query', required: false, description: 'access token', schema: { type: 'string', default: 'abc' } }
+          ],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    count: { type: 'integer', description: 'repeat count', default: 1 }
+                  },
+                  required: []
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const lines = listHelpLinesFromOpenApi(openapi, 'cmd')
+  assert(lines.includes('cmd ping <id> --token <token> --count <count>'))
+  assert(lines.some((l) => l.includes('--token') && l.includes('optional') && l.includes('default')))
+  assert(lines.some((l) => l.includes('--count') && l.includes('optional') && l.includes('integer')))
+  assert(lines.some((l) => l.includes('<id>') && l.includes('required') && l.includes('path')))
+})
+
 test('runCli help lists global flags', async () => {
   const app = new Hono()
   app.post('/ping', (c) => c.text('pong'))
   const { lines } = await runCli(app, ['--help'])
   assert.equal(lines.includes('Flags:'), true)
   assert(lines.some((l) => l.includes('--json')))
+})
+
+test('runCli help uses openapi when provided', async () => {
+  const app = new Hono()
+  app.post('/ping', (c) => c.text('pong'))
+  const openapi = {
+    paths: {
+      '/ping': {
+        post: {
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    token: { type: 'string', description: 'auth token', default: 'x' }
+                  },
+                  required: ['token']
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  const { lines } = await runCli(app, ['--help'], { openapi })
+  assert(lines.some((l) => l.includes('--token') && l.includes('required')))
+  assert(lines.some((l) => l.includes('Flags:')))
 })

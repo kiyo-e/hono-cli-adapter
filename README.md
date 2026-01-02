@@ -54,10 +54,13 @@ Exported from `src/index.ts`:
 
 ```ts
 type BeforeFetchFn = (req: Request, argv: minimist.ParsedArgs) => Promise<Request | void> | Request | void
+type OpenApiSpec = Record<string, unknown>
+type OpenApiProvider = OpenApiSpec | (() => OpenApiSpec | Promise<OpenApiSpec>)
 
 type AdapterOptions = {
   base?: string
   env?: Record<string, unknown>
+  openapi?: OpenApiProvider
   reservedKeys?: string[]
   beforeFetch?: BeforeFetchFn | Record<string, BeforeFetchFn>
 }
@@ -90,11 +93,13 @@ function buildCommandExamples(routes: string[], cmdBase: string): string[]
 function detectCommandBase(argv0?: string, argv1?: string): string
 function listRoutesWithExamples(app: any, cmdBase?: string): { routes: string[]; examples: string[] }
 function listCommandExamples(app: any, cmdBase?: string): string[]
+function listHelpLinesFromOpenApi(openapi: any, cmdBase?: string): string[]
 ```
 
 Key behaviors:
 - Reserved keys default to `['_', '--', 'base', 'env']` and are removed from the query string. Add your own via `options.reservedKeys`.
 - `runCli`/`cli` also reserve global flags automatically: `json`, `list`, `help`, `base`, `env`.
+- If `options.openapi` is provided, `--help` uses it to include per-parameter details (type, required/optional, description, default) and `--list` includes `--param` examples from the spec.
 - Environment precedence when calling `app.fetch(req, env)`:
   1) `process.env` (base, included by default)
   2) `options.env` (overrides base)
@@ -126,6 +131,16 @@ console.log('POST routes:')
 for (const p of routes) console.log('  POST ' + p)
 console.log('\nCommand examples:')
 for (const ex of examples) console.log('  ' + ex)
+```
+
+### OpenAPI-powered help
+
+If you have an OpenAPI spec (e.g., from `hono-openapi` + `describeRoute`), pass it to `runCli` to enrich `--help`:
+
+```ts
+const openapi = await getOpenApiSpecSomehow()
+const { lines } = await runCli(app, process, { openapi })
+for (const l of lines) console.log(l)
 ```
 
 ### Hooks and command detection
